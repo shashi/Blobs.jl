@@ -145,6 +145,13 @@ append!(coll::UUID, blob::Blob) = append!(BlobCollection(id::UUID), blob)
 function append!(coll::BlobCollection, blob::Blob)
     coll.blobs[blob.id] = blob
 end
+
+function pop!(coll::BlobCollection, bid)
+    pop!(coll.blobs, bid)
+    pop!(coll.cache, bid)
+end
+pop!(coll::BlobCollection, blob::Blob) = pop!(coll, blob.id)
+
 blobids(coll::BlobCollection) = keys(coll.blobs)
 
 # Load and save a blob collection
