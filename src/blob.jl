@@ -32,31 +32,40 @@ end
 
 function load{T<:Real}(meta::FileMeta, reader::FileBlobIO{Vector{T}})
     sz = floor(Int, meta.size / sizeof(T))
+    open(meta.filename) do f
+        seek(f, meta.offset)
+        return load(io, reader, (sz,))
+    end
+end
+
+function load{T<:Real}(io::IO, reader::FileBlobIO{Vector{T}}, sz)
     if reader.use_mmap
-        return Mmap.mmap(meta.filename, Vector{T}, (sz,), meta.offset)
+        return Mmap.mmap(io, Vector{T}, (sz,))
     else
-        open(meta.filename) do f
-            seek(f, meta.offset)
-            databytes = Array(T, sz)
-            read!(f, databytes) 
-            return databytes
-        end
+        databytes = Array(T, sz)
+        read!(io, databytes)
+        return databytes
     end
 end
 
 function save{T<:Real}(databytes::Vector{T}, meta::FileMeta, writer::FileBlobIO{Vector{T}})
-    if writer.use_mmap
-        sync!(databytes, Base.MS_SYNC | Base.MS_INVALIDATE)
-    else
+    (sizeof(databytes) == meta.size) || throw(ArgumentError("Blob data not of expected size. Got $(sizeof(databytes)), expected $(meta.size)."))
+    open(meta.filename, "r+") do f
         touch(meta.filename)
-        open(meta.filename, "r+") do f
-            seek(f, meta.offset)
-            #@logmsg("writing $(typeof(databytes)) array of length $(length(databytes)), size $(sizeof(databytes)). expected: $(meta.size)")
-            (sizeof(databytes) == meta.size) || throw(ArgumentError("Blob data not of expected size. Got $(sizeof(databytes)), expected $(meta.size)."))
-            write(f, databytes)
-        end
+        seek(f, meta.offset)
+        save(databytes::Vector{T}, f, writer)
     end
     nothing
+end
+
+function save{T<:Real}(databytes::Vector{T}, io::IO, writer::FileBlobIO{Vector{T}}, sz)
+    if reader.use_mmap
+        # FIXME: do we need to copy this over to the requested file?
+        sync!(databytes, Base.MS_SYNC | Base.MS_INVALIDATE)
+    else
+        #@logmsg("writing $(typeof(databytes)) array of length $(length(databytes)), size $(sizeof(databytes)). expected: $(meta.size)")
+        write(io, databytes)
+    end
 end
 
 # function blob io
